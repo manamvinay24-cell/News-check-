@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
     "use strict";
 
     // =====================================================
-    // 1. API CONFIGURATION - RENDER BACKEND
+    // 1. API CONFIGURATION
     // =====================================================
 
     const API_BASE = "https://news-check-np3i.onrender.com";
@@ -19,12 +19,17 @@ document.addEventListener("DOMContentLoaded", () => {
         health: `${API_BASE}/api/health`
     };
 
-
     // =====================================================
-    // 2. HTML ELEMENT HELPER
+    // 2. ELEMENT HELPER
     // =====================================================
 
     const $ = id => document.getElementById(id);
+
+    const on = (element, event, callback) => {
+        if (element) {
+            element.addEventListener(event, callback);
+        }
+    };
 
     const requiredIds = [
         "newsText",
@@ -37,11 +42,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     for (const id of requiredIds) {
         if (!$(id)) {
-            console.error(`Required HTML element missing: ${id}`);
+            console.error(`Missing HTML element: ${id}`);
             return;
         }
     }
-
 
     // =====================================================
     // 3. ELEMENT REFERENCES
@@ -99,13 +103,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const historyList = $("historyList");
 
-
     // =====================================================
     // 4. APPLICATION VARIABLES
     // =====================================================
 
     let currentTab = "text";
-
     let selectedImage = null;
     let selectedVideo = null;
 
@@ -116,43 +118,61 @@ document.addEventListener("DOMContentLoaded", () => {
     let imageObjectURL = null;
     let videoObjectURL = null;
 
-
     // =====================================================
-    // 5. RESPONSE HANDLER
+    // 5. API RESPONSE HANDLER
     // =====================================================
 
     async function readResponse(response) {
+
         const body = await response.text();
 
+        if (!body) {
+            return {};
+        }
+
         try {
-            return body ? JSON.parse(body) : {};
+            return JSON.parse(body);
         } catch {
             throw new Error(
-                "Backend did not return valid JSON. Please check the Render backend."
+                "Backend returned an invalid response. Please try again."
             );
         }
     }
 
+    async function apiRequest(url, options = {}) {
+
+        const response = await fetch(url, {
+            ...options,
+            credentials: "include"
+        });
+
+        const data = await readResponse(response);
+
+        if (response.status === 401) {
+            window.location.replace("login.html");
+            throw new Error("Your session has expired. Please login again.");
+        }
+
+        if (!response.ok) {
+            throw new Error(
+                data.error || `Request failed: HTTP ${response.status}`
+            );
+        }
+
+        return data;
+    }
 
     // =====================================================
     // 6. AUTHENTICATION CHECK
     // =====================================================
 
     async function checkLogin() {
+
         try {
-            const response = await fetch(API.loginCheck, {
-                method: "GET",
-                credentials: "include"
-            });
 
-            if (response.status === 401) {
-                window.location.replace("login.html");
-                return false;
-            }
+            const data = await apiRequest(API.loginCheck);
 
-            const data = await readResponse(response);
-
-            if (!response.ok || !data.authenticated) {
+            if (!data.authenticated) {
                 window.location.replace("login.html");
                 return false;
             }
@@ -165,23 +185,30 @@ document.addEventListener("DOMContentLoaded", () => {
             return true;
 
         } catch (error) {
+
             console.error("Login verification failed:", error);
 
+            if (error.message.includes("session has expired")) {
+                return false;
+            }
+
             alert(
-                "Cannot connect to NewsCheck backend. " +
+                "Cannot connect to NewsCheck backend.\n\n" +
                 "Please check your internet connection and Render service."
             );
+
+            setBackendStatus(false, "Connection error");
 
             return false;
         }
     }
-
 
     // =====================================================
     // 7. BACKEND STATUS
     // =====================================================
 
     function setBackendStatus(isOnline, message) {
+
         if ($("backendStatus")) {
             $("backendStatus").textContent = message;
         }
@@ -192,10 +219,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-
     async function checkBackend() {
+
         try {
-            const response = await fetch(API.health);
+
+            const response = await fetch(API.health, {
+                method: "GET"
+            });
+
             const data = await readResponse(response);
 
             if (!response.ok || data.status !== "success") {
@@ -205,39 +236,42 @@ document.addEventListener("DOMContentLoaded", () => {
             setBackendStatus(true, "Backend connected");
 
         } catch (error) {
+
             console.error("Backend status error:", error);
             setBackendStatus(false, "Backend offline");
         }
     }
-
 
     // =====================================================
     // 8. CHARACTER COUNT
     // =====================================================
 
     function updateCharacterCount() {
+
         if (charCount) {
             charCount.textContent =
                 `${newsText.value.length} characters`;
         }
     }
 
-    newsText.addEventListener("input", updateCharacterCount);
-
+    on(newsText, "input", updateCharacterCount);
 
     // =====================================================
     // 9. TAB SWITCHING
     // =====================================================
 
     tabs.forEach(tab => {
+
         tab.addEventListener("click", () => {
 
             currentTab = tab.dataset.tab;
 
             tabs.forEach(item => {
+
                 const active = item === tab;
 
                 item.classList.toggle("active", active);
+
                 item.setAttribute(
                     "aria-selected",
                     String(active)
@@ -245,6 +279,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             panels.forEach(panel => {
+
                 panel.classList.toggle(
                     "active",
                     panel.id === `${currentTab}Panel`
@@ -252,46 +287,68 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             resultCard.hidden = true;
+
             hideImageError();
         });
     });
 
+    // =====================================================
+    // 10. IMAGE ERROR HELPERS
+    // =====================================================
+
+    function showImageError(message) {
+
+        if (!imageError) return;
+
+        imageError.textContent = message;
+        imageError.hidden = false;
+    }
+
+    function hideImageError() {
+
+        if (!imageError) return;
+
+        imageError.textContent = "";
+        imageError.hidden = true;
+    }
 
     // =====================================================
-    // 10. IMAGE UPLOAD
+    // 11. IMAGE UPLOAD
     // =====================================================
 
-    imageBrowseBtn.addEventListener("click", event => {
+    on(imageBrowseBtn, "click", event => {
+
         event.stopPropagation();
-        imageInput.click();
+
+        imageInput?.click();
     });
 
+    on(imageUploadArea, "click", event => {
 
-    imageUploadArea.addEventListener("click", event => {
         if (!event.target.closest("button")) {
-            imageInput.click();
+            imageInput?.click();
         }
     });
 
+    on(imageUploadArea, "keydown", event => {
 
-    imageUploadArea.addEventListener("keydown", event => {
         if (event.target !== imageUploadArea) return;
 
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            imageInput.click();
+            imageInput?.click();
         }
     });
 
+    on(imageInput, "change", () => {
 
-    imageInput.addEventListener("change", () => {
         if (imageInput.files[0]) {
             handleImage(imageInput.files[0]);
         }
     });
 
-
     function handleImage(file) {
+
         hideImageError();
 
         const allowedTypes = [
@@ -301,6 +358,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ];
 
         if (!allowedTypes.includes(file.type)) {
+
             showImageError(
                 "Choose a PNG, JPG, JPEG or WEBP image."
             );
@@ -310,6 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (file.size > 8 * 1024 * 1024) {
+
             showImageError(
                 "Image size must be 8 MB or less."
             );
@@ -324,73 +383,89 @@ document.addEventListener("DOMContentLoaded", () => {
 
         imageObjectURL = URL.createObjectURL(file);
 
-        imagePreview.src = imageObjectURL;
-        imagePreviewContainer.hidden = false;
+        if (imagePreview) {
+            imagePreview.src = imageObjectURL;
+        }
 
-        imageInfo.textContent =
-            `${file.name} · ${formatFileSize(file.size)}`;
+        if (imagePreviewContainer) {
+            imagePreviewContainer.hidden = false;
+        }
 
-        imageUploadArea.querySelector("h3").textContent =
-            "Image selected successfully";
+        if (imageInfo) {
+            imageInfo.textContent =
+                `${file.name} · ${formatFileSize(file.size)}`;
+        }
+
+        const heading = imageUploadArea?.querySelector("h3");
+
+        if (heading) {
+            heading.textContent = "Image selected successfully";
+        }
 
         resultCard.hidden = true;
     }
 
-
     function clearImage() {
-        selectedImage = null;
-        imageInput.value = "";
 
-        imagePreview.removeAttribute("src");
-        imagePreviewContainer.hidden = true;
-        imageInfo.textContent = "";
+        selectedImage = null;
+
+        if (imageInput) {
+            imageInput.value = "";
+        }
+
+        if (imagePreview) {
+            imagePreview.removeAttribute("src");
+        }
+
+        if (imagePreviewContainer) {
+            imagePreviewContainer.hidden = true;
+        }
+
+        if (imageInfo) {
+            imageInfo.textContent = "";
+        }
 
         if (imageObjectURL) {
             URL.revokeObjectURL(imageObjectURL);
             imageObjectURL = null;
         }
 
-        imageUploadArea.querySelector("h3").textContent =
-            "Choose an image to upload";
+        const heading = imageUploadArea?.querySelector("h3");
+
+        if (heading) {
+            heading.textContent = "Choose an image to upload";
+        }
     }
 
+    on(removeImage, "click", () => {
 
-    removeImage.addEventListener("click", () => {
         clearImage();
         hideImageError();
     });
 
-
-    function showImageError(message) {
-        imageError.textContent = message;
-        imageError.hidden = false;
-    }
-
-
-    function hideImageError() {
-        imageError.textContent = "";
-        imageError.hidden = true;
-    }
-
-
     // =====================================================
-    // 11. DRAG AND DROP
+    // 12. DRAG AND DROP
     // =====================================================
 
     function setupDragDrop(area, onFile) {
 
+        if (!area) return;
+
         area.addEventListener("dragover", event => {
+
             event.preventDefault();
             area.classList.add("dragover");
         });
 
         area.addEventListener("dragleave", event => {
+
             if (!area.contains(event.relatedTarget)) {
                 area.classList.remove("dragover");
             }
         });
 
         area.addEventListener("drop", event => {
+
             event.preventDefault();
 
             area.classList.remove("dragover");
@@ -403,46 +478,44 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-
     setupDragDrop(imageUploadArea, handleImage);
 
-
     // =====================================================
-    // 12. VIDEO PREVIEW
+    // 13. VIDEO PREVIEW
     // =====================================================
 
-    videoBrowseBtn.addEventListener("click", event => {
+    on(videoBrowseBtn, "click", event => {
+
         event.stopPropagation();
-        videoInput.click();
+
+        videoInput?.click();
     });
 
+    on(videoUploadArea, "click", event => {
 
-    videoUploadArea.addEventListener("click", event => {
         if (!event.target.closest("button")) {
-            videoInput.click();
+            videoInput?.click();
         }
     });
 
+    on(videoUploadArea, "keydown", event => {
 
-    videoUploadArea.addEventListener("keydown", event => {
         if (event.target !== videoUploadArea) return;
 
         if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            videoInput.click();
+            videoInput?.click();
         }
     });
 
+    on(videoInput, "change", () => {
 
-    videoInput.addEventListener("change", () => {
         if (videoInput.files[0]) {
             handleVideo(videoInput.files[0]);
         }
     });
 
-
     setupDragDrop(videoUploadArea, handleVideo);
-
 
     function handleVideo(file) {
 
@@ -462,26 +535,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
         videoObjectURL = URL.createObjectURL(file);
 
-        videoPreview.src = videoObjectURL;
-        videoPreview.load();
+        if (videoPreview) {
+            videoPreview.src = videoObjectURL;
+            videoPreview.load();
+        }
 
-        videoPreviewContainer.hidden = false;
+        if (videoPreviewContainer) {
+            videoPreviewContainer.hidden = false;
+        }
 
-        videoInfo.textContent =
-            `${file.name} · ${formatFileSize(file.size)}`;
+        if (videoInfo) {
+            videoInfo.textContent =
+                `${file.name} · ${formatFileSize(file.size)}`;
+        }
     }
 
-
     function clearVideo() {
+
         selectedVideo = null;
-        videoInput.value = "";
 
-        videoPreview.pause();
-        videoPreview.removeAttribute("src");
-        videoPreview.load();
+        if (videoInput) {
+            videoInput.value = "";
+        }
 
-        videoPreviewContainer.hidden = true;
-        videoInfo.textContent = "";
+        if (videoPreview) {
+            videoPreview.pause();
+            videoPreview.removeAttribute("src");
+            videoPreview.load();
+        }
+
+        if (videoPreviewContainer) {
+            videoPreviewContainer.hidden = true;
+        }
+
+        if (videoInfo) {
+            videoInfo.textContent = "";
+        }
 
         if (videoObjectURL) {
             URL.revokeObjectURL(videoObjectURL);
@@ -489,55 +578,58 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-
-    removeVideo.addEventListener("click", clearVideo);
-
+    on(removeVideo, "click", clearVideo);
 
     // =====================================================
-    // 13. ANALYZE BUTTON
+    // 14. ANALYZE BUTTON
     // =====================================================
 
-    analyzeBtn.addEventListener("click", analyzeContent);
-
+    on(analyzeBtn, "click", analyzeContent);
 
     async function analyzeContent() {
 
         if (isAnalyzing) return;
 
         resultCard.hidden = true;
-        extractedTextBox.hidden = true;
+
+        if (extractedTextBox) {
+            extractedTextBox.hidden = true;
+        }
 
         if (currentTab === "image") {
 
             if (!selectedImage) {
-                showImageError(
-                    "Please choose an image first."
-                );
+                showImageError("Please choose an image first.");
                 return;
             }
 
             hideImageError();
 
             await analyzeImageContent();
+
             return;
         }
 
         if (currentTab === "video") {
+
             alert(
                 "Video preview is available. " +
-                "Video prediction is not implemented in this project."
+                "Video prediction is not implemented yet."
             );
+
             return;
         }
 
         const text = newsText.value.trim();
 
         if (text.length < 20) {
+
             alert(
                 "Please enter at least 20 characters of news text."
             );
 
             newsText.focus();
+
             return;
         }
 
@@ -550,31 +642,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
 
-            const response = await fetch(API.predict, {
+            const data = await apiRequest(API.predict, {
                 method: "POST",
-                credentials: "include",
-
                 headers: {
                     "Content-Type": "application/json"
                 },
-
                 body: JSON.stringify({
                     news: text
                 })
             });
-
-            const data = await readResponse(response);
-
-            if (response.status === 401) {
-                window.location.replace("login.html");
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data.error || `HTTP ${response.status}`
-                );
-            }
 
             showPrediction(data, "Text");
 
@@ -591,14 +667,15 @@ document.addEventListener("DOMContentLoaded", () => {
             await checkBackend();
 
         } finally {
+
             isAnalyzing = false;
+
             setLoading(false);
         }
     }
 
-
     // =====================================================
-    // 14. IMAGE PREDICTION
+    // 15. IMAGE PREDICTION
     // =====================================================
 
     async function analyzeImageContent() {
@@ -618,25 +695,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
             formData.append("image", selectedImage);
 
-            const response = await fetch(API.predictImage, {
-                method: "POST",
-                credentials: "include",
-                body: formData
-            });
-
-            const data = await readResponse(response);
-
-            if (response.status === 401) {
-                window.location.replace("login.html");
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data.error ||
-                    `Image API error: HTTP ${response.status}`
-                );
-            }
+            const data = await apiRequest(
+                API.predictImage,
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
 
             if (typeof data.prediction !== "string") {
                 throw new Error(
@@ -648,17 +713,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 String(data.extracted_text || "").trim();
 
             if (textFromImage) {
+
                 newsText.value = textFromImage;
+
                 updateCharacterCount();
             }
 
             showPrediction(data, "Image (OCR)");
 
-            extractedText.textContent =
-                textFromImage ||
-                "No readable text was returned by OCR.";
+            if (extractedText) {
+                extractedText.textContent =
+                    textFromImage ||
+                    "No readable text was returned by OCR.";
+            }
 
-            extractedTextBox.hidden = false;
+            if (extractedTextBox) {
+                extractedTextBox.hidden = false;
+            }
 
             await refreshAllData();
 
@@ -674,14 +745,15 @@ document.addEventListener("DOMContentLoaded", () => {
             await checkBackend();
 
         } finally {
+
             isAnalyzing = false;
+
             setLoading(false);
         }
     }
 
-
     // =====================================================
-    // 15. DISPLAY PREDICTION
+    // 16. DISPLAY PREDICTION
     // =====================================================
 
     function showPrediction(data, defaultType) {
@@ -703,16 +775,12 @@ document.addEventListener("DOMContentLoaded", () => {
         );
 
         displayResult({
-            status: status,
-            confidence: confidence,
-
+            status,
+            confidence,
             type: data.content_type || defaultType,
-
             source: data.source || "Trained ML Model",
-
             confidenceLevel:
                 data.confidence_level || "MODEL_SCORE",
-
             message:
                 data.warning ||
                 data.message ||
@@ -720,61 +788,81 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-
     function displayResult(result) {
 
         resultCard.hidden = false;
 
-        resultStatus.textContent = result.status;
+        if (resultStatus) {
 
-        resultStatus.className =
-            `result-status ${result.status.toLowerCase()}`;
+            resultStatus.textContent = result.status;
 
-
-        if (result.status === "FAKE") {
-
-            resultTitle.textContent =
-                "Model predicts potentially misleading content";
-
-        } else if (result.status === "REAL") {
-
-            resultTitle.textContent =
-                "Model predicts likely real content";
-
-        } else {
-
-            resultTitle.textContent =
-                "Prediction is uncertain";
+            resultStatus.className =
+                `result-status ${result.status.toLowerCase()}`;
         }
 
+        if (resultTitle) {
 
-        resultMessage.textContent = result.message;
+            if (result.status === "FAKE") {
+                resultTitle.textContent =
+                    "Model predicts potentially misleading content";
 
-        confidenceValue.textContent =
-            `${result.confidence.toFixed(2)}%`;
+            } else if (result.status === "REAL") {
+                resultTitle.textContent =
+                    "Model predicts likely real content";
 
-        progressBar.style.width =
-            `${result.confidence}%`;
+            } else {
+                resultTitle.textContent =
+                    "Prediction is uncertain";
+            }
+        }
 
-        progressBar.className =
-            `progress-bar ${result.status.toLowerCase()}`;
+        if (resultMessage) {
+            resultMessage.textContent = result.message;
+        }
 
-        confidenceProgress.setAttribute(
-            "aria-valuenow",
-            String(Math.round(result.confidence))
-        );
+        if (confidenceValue) {
+            confidenceValue.textContent =
+                `${result.confidence.toFixed(2)}%`;
+        }
 
-        contentType.textContent = result.type;
+        if (progressBar) {
 
-        sourceResult.textContent = result.source;
+            progressBar.style.width =
+                `${result.confidence}%`;
 
-        languageResult.textContent =
-            result.type.includes("Image")
-                ? "OCR + Text Classification"
-                : "Text Classification";
+            progressBar.className =
+                `progress-bar ${result.status.toLowerCase()}`;
+        }
 
-        confidenceLevel.textContent =
-            String(result.confidenceLevel).replaceAll("_", " ");
+        if (confidenceProgress) {
+
+            confidenceProgress.setAttribute(
+                "aria-valuenow",
+                String(Math.round(result.confidence))
+            );
+        }
+
+        if (contentType) {
+            contentType.textContent = result.type;
+        }
+
+        if (sourceResult) {
+            sourceResult.textContent = result.source;
+        }
+
+        if (languageResult) {
+
+            languageResult.textContent =
+                result.type.includes("Image")
+                    ? "OCR + Text Classification"
+                    : "Text Classification";
+        }
+
+        if (confidenceLevel) {
+
+            confidenceLevel.textContent =
+                String(result.confidenceLevel).replaceAll("_", " ");
+        }
 
         resultCard.scrollIntoView({
             behavior: "smooth",
@@ -782,16 +870,19 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-
     // =====================================================
-    // 16. LOADING STATE
+    // 17. LOADING STATE
     // =====================================================
 
     function setLoading(active, message = "") {
 
-        loadingCard.hidden = !active;
+        if (loadingCard) {
+            loadingCard.hidden = !active;
+        }
 
-        loadingMessage.textContent = message;
+        if (loadingMessage) {
+            loadingMessage.textContent = message;
+        }
 
         analyzeBtn.disabled = active;
         clearBtn.disabled = active;
@@ -800,9 +891,8 @@ document.addEventListener("DOMContentLoaded", () => {
             active ? "Analyzing..." : "⌕ Analyze Content";
     }
 
-
     // =====================================================
-    // 17. DASHBOARD REFRESH
+    // 18. REFRESH ALL DATA
     // =====================================================
 
     async function refreshAllData() {
@@ -814,46 +904,36 @@ document.addEventListener("DOMContentLoaded", () => {
         ]);
     }
 
-
     // =====================================================
-    // 18. LOAD DASHBOARD STATISTICS
+    // 19. LOAD DASHBOARD STATISTICS
     // =====================================================
 
     async function loadDashboard() {
 
         try {
 
-            const response = await fetch(API.dashboard, {
-                credentials: "include"
-            });
+            const data = await apiRequest(API.dashboard);
 
-            const data = await readResponse(response);
-
-            if (response.status === 401) {
-                window.location.replace("login.html");
-                return;
+            if ($("totalCount")) {
+                $("totalCount").textContent = data.total ?? 0;
             }
 
-            if (!response.ok) {
-                throw new Error(
-                    data.error || "Dashboard could not be loaded."
-                );
+            if ($("fakeCount")) {
+                $("fakeCount").textContent = data.fake ?? 0;
             }
 
-            $("totalCount").textContent = data.total ?? 0;
+            if ($("realCount")) {
+                $("realCount").textContent = data.real ?? 0;
+            }
 
-            $("fakeCount").textContent = data.fake ?? 0;
+            if ($("averageConfidence")) {
 
-            $("realCount").textContent = data.real ?? 0;
-
-            $("averageConfidence").textContent =
-                `${Number(data.average_confidence || 0).toFixed(1)}%`;
-
+                $("averageConfidence").textContent =
+                    `${Number(data.average_confidence || 0).toFixed(1)}%`;
+            }
 
             const total = Number(data.total || 0);
-
             const fake = Number(data.fake || 0);
-
             const real = Number(data.real || 0);
 
             const other = Math.max(
@@ -861,41 +941,46 @@ document.addEventListener("DOMContentLoaded", () => {
                 total - fake - real
             );
 
+            const fakePct = total ? fake / total * 100 : 0;
+            const realPct = total ? real / total * 100 : 0;
+            const otherPct = total ? other / total * 100 : 0;
 
-            const fakePct =
-                total ? fake / total * 100 : 0;
+            if ($("fakePercent")) {
+                $("fakePercent").textContent =
+                    `${fakePct.toFixed(1)}%`;
+            }
 
-            const realPct =
-                total ? real / total * 100 : 0;
+            if ($("realPercent")) {
+                $("realPercent").textContent =
+                    `${realPct.toFixed(1)}%`;
+            }
 
-            const otherPct =
-                total ? other / total * 100 : 0;
+            if ($("otherPercent")) {
+                $("otherPercent").textContent =
+                    `${otherPct.toFixed(1)}%`;
+            }
 
+            if ($("fakeDistribution")) {
+                $("fakeDistribution").style.width =
+                    `${fakePct}%`;
+            }
 
-            $("fakePercent").textContent =
-                `${fakePct.toFixed(1)}%`;
+            if ($("realDistribution")) {
+                $("realDistribution").style.width =
+                    `${realPct}%`;
+            }
 
-            $("realPercent").textContent =
-                `${realPct.toFixed(1)}%`;
+            if ($("otherDistribution")) {
+                $("otherDistribution").style.width =
+                    `${otherPct}%`;
+            }
 
-            $("otherPercent").textContent =
-                `${otherPct.toFixed(1)}%`;
+            if ($("distributionNote")) {
 
-
-            $("fakeDistribution").style.width =
-                `${fakePct}%`;
-
-            $("realDistribution").style.width =
-                `${realPct}%`;
-
-            $("otherDistribution").style.width =
-                `${otherPct}%`;
-
-
-            $("distributionNote").textContent = total
-                ? `${total} saved prediction${total === 1 ? "" : "s"} included in this summary.`
-                : "Your saved predictions will appear here after analysis.";
-
+                $("distributionNote").textContent = total
+                    ? `${total} saved prediction${total === 1 ? "" : "s"} included in this summary.`
+                    : "Your saved predictions will appear here after analysis.";
+            }
 
             renderDashboardRecent(
                 Array.isArray(data.recent) ? data.recent : []
@@ -905,24 +990,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
             console.error("Dashboard loading error:", error);
 
-            $("totalCount").textContent = "—";
-            $("fakeCount").textContent = "—";
-            $("realCount").textContent = "—";
-            $("averageConfidence").textContent = "—";
+            [
+                "totalCount",
+                "fakeCount",
+                "realCount",
+                "averageConfidence"
+            ].forEach(id => {
+                if ($(id)) {
+                    $(id).textContent = "—";
+                }
+            });
 
-            $("dashboardRecent").textContent =
-                "Dashboard data is unavailable. Please refresh.";
+            if ($("dashboardRecent")) {
+                $("dashboardRecent").textContent =
+                    "Dashboard data is unavailable. Please refresh.";
+            }
         }
     }
 
-
     // =====================================================
-    // 19. RECENT DASHBOARD PREDICTIONS
+    // 20. RECENT DASHBOARD PREDICTIONS
     // =====================================================
 
     function renderDashboardRecent(items) {
 
         const container = $("dashboardRecent");
+
+        if (!container) return;
 
         container.replaceChildren();
 
@@ -931,7 +1025,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const empty = document.createElement("div");
 
             empty.className = "empty-history";
-
             empty.textContent = "No recent checks yet.";
 
             container.appendChild(empty);
@@ -939,36 +1032,24 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-
         items.slice(0, 4).forEach(item => {
 
             const row = document.createElement("div");
-
             row.className = "dashboard-recent-item";
 
-
             const copy = document.createElement("div");
-
             copy.className = "dashboard-recent-copy";
 
-
             const title = document.createElement("div");
-
             title.className = "dashboard-recent-title";
-
             title.textContent =
                 String(item.news || "Analyzed content");
 
-
             const date = document.createElement("div");
-
             date.className = "dashboard-recent-date";
-
             date.textContent = item.created_at || "";
 
-
             copy.append(title, date);
-
 
             const badge = document.createElement("span");
 
@@ -977,7 +1058,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
             badge.className =
                 "history-status dashboard-foot-status";
-
 
             if (prediction.includes("FAKE")) {
                 badge.classList.add("fake");
@@ -993,31 +1073,15 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-
     // =====================================================
-    // 20. LOAD PREDICTION HISTORY
+    // 21. LOAD PREDICTION HISTORY
     // =====================================================
 
     async function loadPredictionHistory() {
 
         try {
 
-            const response = await fetch(API.history, {
-                credentials: "include"
-            });
-
-            const data = await readResponse(response);
-
-            if (response.status === 401) {
-                window.location.replace("login.html");
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data.error || "Could not load history."
-                );
-            }
+            const data = await apiRequest(API.history);
 
             renderHistory(
                 Array.isArray(data.history) ? data.history : []
@@ -1032,9 +1096,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-
     // =====================================================
-    // 21. RENDER HISTORY
+    // 22. RENDER HISTORY
     // =====================================================
 
     function renderHistory(items) {
@@ -1055,59 +1118,40 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-
         items.forEach(item => {
 
             const row = document.createElement("div");
-
             row.className = "history-item";
 
-
             const left = document.createElement("div");
-
             left.className = "history-left";
 
-
             const icon = document.createElement("div");
-
             icon.className = "history-icon";
 
             icon.textContent =
                 item.content_type === "Image (OCR)" ? "▧" : "✎";
 
-
             const info = document.createElement("div");
-
             info.className = "history-info";
 
-
             const title = document.createElement("div");
-
             title.className = "history-title";
-
             title.textContent =
                 String(item.news || "Analyzed content");
 
-
             const type = document.createElement("div");
-
             type.className = "history-type";
 
             type.textContent =
                 `${item.content_type || "Text"} · ${Number(item.confidence || 0).toFixed(2)}% confidence`;
 
-
             const date = document.createElement("div");
-
             date.className = "history-date";
-
             date.textContent = item.created_at || "";
 
-
             info.append(title, type, date);
-
             left.append(icon, info);
-
 
             const badge = document.createElement("span");
 
@@ -1115,7 +1159,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 String(item.prediction || "UNCERTAIN").toUpperCase();
 
             badge.className = "history-status";
-
 
             if (prediction.includes("FAKE")) {
                 badge.classList.add("fake");
@@ -1125,19 +1168,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
             badge.textContent = prediction;
 
-
             row.append(left, badge);
 
             historyList.appendChild(row);
         });
     }
 
-
     // =====================================================
-    // 22. CLEAR TEXT INPUT
+    // 23. CLEAR TEXT AND FILE INPUT
     // =====================================================
 
-    clearBtn.addEventListener("click", () => {
+    on(clearBtn, "click", () => {
 
         if (isAnalyzing) return;
 
@@ -1146,24 +1187,24 @@ document.addEventListener("DOMContentLoaded", () => {
         updateCharacterCount();
 
         clearImage();
-
         clearVideo();
 
         hideImageError();
 
         resultCard.hidden = true;
 
-        extractedTextBox.hidden = true;
+        if (extractedTextBox) {
+            extractedTextBox.hidden = true;
+        }
 
         newsText.focus();
     });
 
-
     // =====================================================
-    // 23. CLEAR PREDICTION HISTORY
+    // 24. CLEAR HISTORY
     // =====================================================
 
-    clearHistoryBtn.addEventListener("click", async () => {
+    on(clearHistoryBtn, "click", async () => {
 
         if (isClearingHistory || isAnalyzing) return;
 
@@ -1179,23 +1220,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
 
-            const response = await fetch(API.clearHistory, {
-                method: "DELETE",
-                credentials: "include"
+            await apiRequest(API.clearHistory, {
+                method: "DELETE"
             });
-
-            const data = await readResponse(response);
-
-            if (response.status === 401) {
-                window.location.replace("login.html");
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data.error || "Unable to clear history."
-                );
-            }
 
             await refreshAllData();
 
@@ -1217,31 +1244,36 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-
     // =====================================================
-    // 24. REFRESH DASHBOARD BUTTON
+    // 25. REFRESH DASHBOARD
     // =====================================================
 
-    refreshDashboardBtn.addEventListener("click", async () => {
+    on(refreshDashboardBtn, "click", async () => {
 
         refreshDashboardBtn.disabled = true;
+
+        const originalText = refreshDashboardBtn.textContent;
 
         refreshDashboardBtn.textContent = "Refreshing...";
 
         try {
+
             await refreshAllData();
+
         } finally {
+
             refreshDashboardBtn.disabled = false;
-            refreshDashboardBtn.textContent = "↻ Refresh";
+
+            refreshDashboardBtn.textContent =
+                originalText || "↻ Refresh";
         }
     });
 
-
     // =====================================================
-    // 25. LOGOUT
+    // 26. LOGOUT
     // =====================================================
 
-    logoutBtn.addEventListener("click", async () => {
+    on(logoutBtn, "click", async () => {
 
         if (isLoggingOut) return;
 
@@ -1254,23 +1286,13 @@ document.addEventListener("DOMContentLoaded", () => {
         isLoggingOut = true;
 
         logoutBtn.disabled = true;
-
         logoutBtn.textContent = "Logging out...";
 
         try {
 
-            const response = await fetch(API.logout, {
-                method: "POST",
-                credentials: "include"
+            await apiRequest(API.logout, {
+                method: "POST"
             });
-
-            const data = await readResponse(response);
-
-            if (!response.ok) {
-                throw new Error(
-                    data.error || "Logout failed."
-                );
-            }
 
             window.location.replace("login.html");
 
@@ -1278,26 +1300,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
             console.error("Logout error:", error);
 
-            alert(
-                `Logout failed: ${error.message}`
-            );
+            alert(`Logout failed: ${error.message}`);
 
             isLoggingOut = false;
 
             logoutBtn.disabled = false;
-
             logoutBtn.textContent = "Logout";
         }
     });
 
-
     // =====================================================
-    // 26. COPY EXTRACTED OCR TEXT
+    // 27. COPY EXTRACTED OCR TEXT
     // =====================================================
 
-    copyExtractedText.addEventListener("click", async () => {
+    on(copyExtractedText, "click", async () => {
 
-        const text = extractedText.textContent.trim();
+        const text = extractedText?.textContent.trim() || "";
 
         if (!text) {
             alert("There is no extracted text to copy.");
@@ -1310,7 +1328,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             alert("Extracted text copied successfully.");
 
-        } catch (error) {
+        } catch {
 
             alert(
                 "Copy failed. Select the extracted text and copy it manually."
@@ -1318,9 +1336,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-
     // =====================================================
-    // 27. FILE SIZE FORMAT
+    // 28. FILE SIZE FORMAT
     // =====================================================
 
     function formatFileSize(bytes) {
@@ -1332,7 +1349,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const units = ["KB", "MB", "GB"];
 
         let size = bytes / 1024;
-
         let unit = 0;
 
         while (
@@ -1346,14 +1362,15 @@ document.addEventListener("DOMContentLoaded", () => {
         return `${size.toFixed(2)} ${units[unit]}`;
     }
 
-
     // =====================================================
-    // 28. INITIAL APPLICATION START
+    // 29. INITIAL APPLICATION START
     // =====================================================
 
     async function initializeDashboard() {
 
         updateCharacterCount();
+
+        setBackendStatus(false, "Connecting...");
 
         const authenticated = await checkLogin();
 
@@ -1370,9 +1387,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     initializeDashboard();
 
-
     // =====================================================
-    // 29. CLEAN UP TEMPORARY FILE PREVIEWS
+    // 30. CLEAN UP TEMPORARY FILE PREVIEWS
     // =====================================================
 
     window.addEventListener("beforeunload", () => {
