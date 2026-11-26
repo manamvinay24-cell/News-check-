@@ -3,10 +3,10 @@ document.addEventListener("DOMContentLoaded", () => {
     "use strict";
 
     // =====================================================
-    // 1. API CONFIGURATION
+    // 1. API CONFIGURATION - RENDER BACKEND
     // =====================================================
 
-    const API_BASE = "http://127.0.0.1:5000";
+    const API_BASE = "https://news-check-np3i.onrender.com";
 
     const API = {
         loginCheck: `${API_BASE}/api/auth/me`,
@@ -128,7 +128,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return body ? JSON.parse(body) : {};
         } catch {
             throw new Error(
-                "Backend did not return valid JSON. Check Flask terminal."
+                "Backend did not return valid JSON. Please check the Render backend."
             );
         }
     }
@@ -157,7 +157,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return false;
             }
 
-            if (data.user) {
+            if (data.user && $("welcomeUser")) {
                 $("welcomeUser").textContent =
                     `Welcome, ${data.user.name}!`;
             }
@@ -169,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             alert(
                 "Cannot connect to NewsCheck backend. " +
-                "Please start Flask and open the dashboard again."
+                "Please check your internet connection and Render service."
             );
 
             return false;
@@ -182,10 +182,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // =====================================================
 
     function setBackendStatus(isOnline, message) {
-        $("backendStatus").textContent = message;
+        if ($("backendStatus")) {
+            $("backendStatus").textContent = message;
+        }
 
-        $("backendDot").classList.toggle("online", isOnline);
-        $("backendDot").classList.toggle("offline", !isOnline);
+        if ($("backendDot")) {
+            $("backendDot").classList.toggle("online", isOnline);
+            $("backendDot").classList.toggle("offline", !isOnline);
+        }
     }
 
 
@@ -201,6 +205,7 @@ document.addEventListener("DOMContentLoaded", () => {
             setBackendStatus(true, "Backend connected");
 
         } catch (error) {
+            console.error("Backend status error:", error);
             setBackendStatus(false, "Backend offline");
         }
     }
@@ -211,8 +216,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // =====================================================
 
     function updateCharacterCount() {
-        charCount.textContent =
-            `${newsText.value.length} characters`;
+        if (charCount) {
+            charCount.textContent =
+                `${newsText.value.length} characters`;
+        }
     }
 
     newsText.addEventListener("input", updateCharacterCount);
@@ -584,6 +591,7 @@ document.addEventListener("DOMContentLoaded", () => {
             await checkBackend();
 
         } finally {
+            isAnalyzing = false;
             setLoading(false);
         }
     }
@@ -660,12 +668,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
             showImageError(
                 `Image analysis failed: ${error.message}. ` +
-                "Check that Flask and OCR are running."
+                "Check the Render backend and OCR configuration."
             );
 
             await checkBackend();
 
         } finally {
+            isAnalyzing = false;
             setLoading(false);
         }
     }
@@ -902,7 +911,7 @@ document.addEventListener("DOMContentLoaded", () => {
             $("averageConfidence").textContent = "—";
 
             $("dashboardRecent").textContent =
-                "Dashboard data is unavailable. Start Flask and refresh.";
+                "Dashboard data is unavailable. Please refresh.";
         }
     }
 
@@ -1019,7 +1028,7 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("History loading error:", error);
 
             historyList.textContent =
-                "History is unavailable. Check the Flask backend.";
+                "History is unavailable. Please check the backend.";
         }
     }
 
@@ -1219,11 +1228,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         refreshDashboardBtn.textContent = "Refreshing...";
 
-        await refreshAllData();
-
-        refreshDashboardBtn.disabled = false;
-
-        refreshDashboardBtn.textContent = "↻ Refresh";
+        try {
+            await refreshAllData();
+        } finally {
+            refreshDashboardBtn.disabled = false;
+            refreshDashboardBtn.textContent = "↻ Refresh";
+        }
     });
 
 
