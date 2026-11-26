@@ -14,20 +14,23 @@ from sklearn.metrics import (
     confusion_matrix
 )
 
-# ==========================================
+
+# =====================================================
 # 1. PROJECT PATHS
-# ==========================================
+# =====================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DATASET_DIR = os.path.join(BASE_DIR, "dataset")
 MODEL_DIR = os.path.join(BASE_DIR, "model")
-MODEL_PATH = os.path.join(
-    MODEL_DIR, "fake_news_model.joblib"
-)
 
 FAKE_FILE = os.path.join(DATASET_DIR, "Fake.csv")
 REAL_FILE = os.path.join(DATASET_DIR, "True.csv")
+
+MODEL_PATH = os.path.join(
+    MODEL_DIR,
+    "fake_news_model.joblib"
+)
 
 LABEL_NAMES = {
     0: "FAKE NEWS",
@@ -35,30 +38,34 @@ LABEL_NAMES = {
 }
 
 
-# ==========================================
+# =====================================================
 # 2. CLEAN TEXT
-# ==========================================
+# =====================================================
 
 def clean_text(text):
+
     if pd.isna(text):
         return ""
 
     text = str(text)
+
     text = re.sub(r"<[^>]+>", " ", text)
+
     text = re.sub(
-        r"(https?://\S+|www\.\S+)",
+        r"https?://\S+|www\.\S+",
         " ",
         text,
         flags=re.IGNORECASE
     )
+
     text = re.sub(r"\s+", " ", text)
 
     return text.strip()
 
 
-# ==========================================
+# =====================================================
 # 3. LOAD DATASETS
-# ==========================================
+# =====================================================
 
 print("\nLoading datasets...")
 
@@ -72,16 +79,21 @@ if not os.path.isfile(REAL_FILE):
         f"Real dataset not found: {REAL_FILE}"
     )
 
-fake = pd.read_csv(FAKE_FILE)
-real = pd.read_csv(REAL_FILE)
+fake = pd.read_csv(FAKE_FILE, low_memory=False)
+real = pd.read_csv(REAL_FILE, low_memory=False)
+
+# Normalize column names.
+fake.columns = fake.columns.str.strip().str.lower()
+real.columns = real.columns.str.strip().str.lower()
 
 required_columns = {"title", "text"}
 
-for filename, df in [
+for filename, dataframe in [
     ("Fake.csv", fake),
     ("True.csv", real)
 ]:
-    missing = required_columns - set(df.columns)
+
+    missing = required_columns - set(dataframe.columns)
 
     if missing:
         raise ValueError(
@@ -92,156 +104,143 @@ print("Fake articles:", len(fake))
 print("Real articles:", len(real))
 
 
-# ==========================================
+# =====================================================
 # 4. PREPARE DATA
-# ==========================================
+# =====================================================
 
 fake["label"] = 0
 real["label"] = 1
 
-fake["content"] = (
-    fake["title"].fillna("").astype(str)
-    + " "
-    + fake["text"].fillna("").astype(str)
-)
-
-real["content"] = (
-    real["title"].fillna("").astype(str)
-    + " "
-    + real["text"].fillna("").astype(str)
-)
-
 data = pd.concat(
-    [
-        fake[["content", "label"]],
-        real[["content", "label"]]
-    ],
+    [fake, real],
     ignore_index=True
 )
 
-data["content"] = data["content"].apply(clean_text)
+data["title"] = data["title"].apply(clean_text)
+data["text"] = data["text"].apply(clean_text)
 
-data = data[data["content"].str.len() > 0].copy()
+# Use title + article as the full article sample.
+data["content"] = (
+    data["title"] + " " + data["text"]
+).str.strip()
 
+data = data[
+    data["content"].str.len() > 0
+].copy()
+
+# Remove records with identical content but conflicting labels.
+label_counts = data.groupby("content")["label"].nunique()
+
+conflicting_content = label_counts[
+    label_counts > 1
+].index
+
+if len(conflicting_content):
+    print(
+        "Removing conflicting duplicate articles:",
+        len(conflicting_content)
+    )
+
+    data = data[
+        ~data["content"].isin(conflicting_content)
+    ].copy()
+
+# Remove exact duplicate articles.
 data = data.drop_duplicates(
     subset=["content"]
 ).reset_index(drop=True)
 
 if data["label"].nunique() != 2:
     raise ValueError(
-        "Dataset must contain both fake and real news."
+        "Both FAKE and REAL classes are required."
     )
 
-print("\nTotal articles:", len(data))
+print("\nTotal usable articles:", len(data))
+
 print("\nClass distribution:")
-print(data["label"].value_counts().sort_index())
+print(
+    data["label"].value_counts().sort_index().rename(
+        index=LABEL_NAMES
+    )
+)
 
 
-# ==========================================
-# 5. SPLIT DATASET
-# ==========================================
+# =====================================================
+# 5. SPLIT ORIGINAL DATASET
+# =====================================================
 
-X = data["content"]
-y = data["label"]
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
+train_data, test_data = train_test_split(
+    data,
     test_size=0.20,
     random_state=42,
-    stratify=y
+    stratify=data["label"]
 )
 
-print("\nOriginal training samples:", len(X_train))
-print("Original testing samples:", len(X_test))
+print("\nOriginal training articles:", len(train_data))
+print("Original testing articles:", len(test_data))
 
 
-# ==========================================
-# 6. ADD SCIENCE EXAMPLES TO TRAINING
-# ==========================================
-# These are factual statements, not verified news articles.
-# They help with selected science-related wording only.
+# =====================================================
+# 6. PREPARE TRAINING EXAMPLES
+# =====================================================
+# Each training article produces:
+# 1. Full article (title + text)
+# 2. Title-only example
+#
+# Both examples inherit the article's original label.
+# No manually invented science labels are added.
 
-science_examples = [
-    "The Earth revolves around the Sun.",
-    "The Earth orbits the Sun.",
-    "Earth rotates on its axis.",
-    "The Moon orbits the Earth.",
-    "The Sun is a star.",
-    "Mars is a planet in our Solar System.",
-    "The Solar System contains planets orbiting the Sun.",
-    "Scientists use telescopes to study galaxies.",
-    "Scientists use telescopes to observe distant galaxies.",
-    "Astronomers study stars and distant galaxies.",
-    "Astronomers use space telescopes to observe the universe.",
-    "NASA's Perseverance rover is exploring Mars.",
-    "NASA's Perseverance rover collects scientific data on Mars.",
-    "Water is composed of hydrogen and oxygen.",
-    "Water freezes at zero degrees Celsius under standard pressure.",
-    "Water boils at approximately 100 degrees Celsius at sea level.",
-    "Plants use sunlight during photosynthesis.",
-    "Gravity attracts objects with mass toward each other.",
-    "Scientists study fossils to learn about ancient life.",
-    "Sound travels through air as waves.",
-    "The human heart pumps blood around the body.",
-    "The human heart pumps blood throughout the body.",
-    "The heart circulates blood through the human body.",
-    "The human heart moves blood through blood vessels.",
-    "The heart is an organ that pumps blood.",
-    "New Delhi is the capital of India.",
-    "Scientific research uses observations and experiments."
-]
+train_full = train_data["content"].tolist()
+train_titles = train_data["title"].tolist()
 
-science_data = pd.DataFrame({
-    "content": [
-        clean_text(text) for text in science_examples
-    ],
-    "label": [1] * len(science_examples)
-})
+train_labels = train_data["label"].tolist()
 
-# Remove any exact examples already in the original training set.
-existing_training = set(X_train)
+X_train = []
+y_train = []
 
-science_data = science_data[
-    ~science_data["content"].isin(existing_training)
-].copy()
+for full_text, title, label in zip(
+    train_full,
+    train_titles,
+    train_labels
+):
 
-X_train = pd.concat(
-    [
-        X_train.reset_index(drop=True),
-        science_data["content"].reset_index(drop=True)
-    ],
-    ignore_index=True
-)
+    if full_text:
+        X_train.append(full_text)
+        y_train.append(label)
 
-y_train = pd.concat(
-    [
-        y_train.reset_index(drop=True),
-        science_data["label"].reset_index(drop=True)
-    ],
-    ignore_index=True
-)
+    if title and len(title) >= 5:
+        X_train.append(title)
+        y_train.append(label)
 
-# Remove duplicate training texts.
-training_data = pd.DataFrame({
-    "content": X_train,
-    "label": y_train
-})
-
-training_data = training_data.drop_duplicates(
-    subset=["content"]
-).reset_index(drop=True)
-
-X_train = training_data["content"]
-y_train = training_data["label"]
-
-print("\nScience examples added:", len(science_data))
-print("Final training samples:", len(X_train))
+print("\nTraining examples:", len(X_train))
 
 
-# ==========================================
-# 7. BUILD MACHINE LEARNING MODEL
-# ==========================================
+# =====================================================
+# 7. PREPARE SEPARATE TEST SETS
+# =====================================================
+
+X_test_full = test_data["content"].tolist()
+y_test_full = test_data["label"].tolist()
+
+X_test_titles = []
+y_test_titles = []
+
+for title, label in zip(
+    test_data["title"],
+    test_data["label"]
+):
+
+    if title and len(title) >= 5:
+        X_test_titles.append(title)
+        y_test_titles.append(label)
+
+print("Full article test samples:", len(X_test_full))
+print("Title-only test samples:", len(X_test_titles))
+
+
+# =====================================================
+# 8. BUILD TF-IDF + LOGISTIC REGRESSION MODEL
+# =====================================================
 
 word_features = TfidfVectorizer(
     lowercase=True,
@@ -273,46 +272,50 @@ model = Pipeline([
         "classifier",
         LogisticRegression(
             max_iter=1500,
+            class_weight="balanced",
             random_state=42
         )
     )
 ])
 
 
-# ==========================================
-# 8. TRAIN MODEL
-# ==========================================
+# =====================================================
+# 9. TRAIN MODEL
+# =====================================================
 
-print("\nTraining model. Please wait...")
+print("\nTraining NewsCheck model...")
+print("Please wait...")
 
 model.fit(X_train, y_train)
 
-print("Training completed!")
+print("\nTraining completed successfully!")
 
 
-# ==========================================
-# 9. EVALUATE MODEL
-# ==========================================
-# Evaluation uses the original held-out test dataset.
+# =====================================================
+# 10. EVALUATE FULL ARTICLES
+# =====================================================
 
-print("\nEvaluating on original test dataset...")
+print("\n========================================")
+print("FULL ARTICLE TEST RESULTS")
+print("========================================")
 
-predictions = model.predict(X_test)
+full_predictions = model.predict(X_test_full)
 
-accuracy = accuracy_score(y_test, predictions)
+full_accuracy = accuracy_score(
+    y_test_full,
+    full_predictions
+)
 
-print("\n===================================")
-print("MODEL RESULTS")
-print("===================================")
-
-print(f"Test accuracy: {accuracy * 100:.2f}%")
+print(
+    f"\nFull article accuracy: {full_accuracy * 100:.2f}%"
+)
 
 print("\nClassification Report:")
 
 print(
     classification_report(
-        y_test,
-        predictions,
+        y_test_full,
+        full_predictions,
         labels=[0, 1],
         target_names=["FAKE NEWS", "REAL NEWS"],
         digits=4,
@@ -320,52 +323,99 @@ print(
     )
 )
 
-print("\nConfusion Matrix")
+print("\nConfusion Matrix:")
 print("Order: FAKE NEWS, REAL NEWS")
 
 print(
     confusion_matrix(
-        y_test,
-        predictions,
+        y_test_full,
+        full_predictions,
         labels=[0, 1]
     )
 )
 
 
-# ==========================================
-# 10. SAVE TRAINED MODEL
-# ==========================================
+# =====================================================
+# 11. EVALUATE TITLE-ONLY EXAMPLES
+# =====================================================
+
+print("\n========================================")
+print("TITLE-ONLY TEST RESULTS")
+print("========================================")
+
+if X_test_titles:
+
+    title_predictions = model.predict(X_test_titles)
+
+    title_accuracy = accuracy_score(
+        y_test_titles,
+        title_predictions
+    )
+
+    print(
+        f"\nTitle-only accuracy: {title_accuracy * 100:.2f}%"
+    )
+
+    print("\nTitle Classification Report:")
+
+    print(
+        classification_report(
+            y_test_titles,
+            title_predictions,
+            labels=[0, 1],
+            target_names=["FAKE NEWS", "REAL NEWS"],
+            digits=4,
+            zero_division=0
+        )
+    )
+
+else:
+    print("No usable titles found for evaluation.")
+
+
+# =====================================================
+# 12. SAVE MODEL
+# =====================================================
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 joblib.dump(model, MODEL_PATH)
 
-print("\nModel saved successfully!")
-print("Saved at:", MODEL_PATH)
+print("\n========================================")
+print("MODEL SAVED SUCCESSFULLY")
+print("========================================")
+
+print("Model location:", MODEL_PATH)
+print("Model classes:", model.classes_)
 
 
-# ==========================================
-# 11. PREDICTION FUNCTION
-# ==========================================
+# =====================================================
+# 13. SAMPLE PREDICTIONS
+# =====================================================
+# These are diagnostic examples only.
+# Their output is not guaranteed to be correct.
 
 def predict_news(news):
+
     news = clean_text(news)
 
     if not news:
         return {
             "prediction": "NO INPUT",
-            "confidence": 0.0,
-            "message": "Please enter news content."
+            "confidence": 0.0
         }
 
-    predicted_label = int(model.predict([news])[0])
+    predicted_label = int(
+        model.predict([news])[0]
+    )
 
     probabilities = model.predict_proba([news])[0]
+
     classifier = model.named_steps["classifier"]
 
-    predicted_index = list(classifier.classes_).index(
-        predicted_label
-    )
+    predicted_index = list(
+        classifier.classes_
+    ).index(predicted_label)
 
     confidence = float(
         probabilities[predicted_index] * 100
@@ -373,37 +423,28 @@ def predict_news(news):
 
     return {
         "prediction": LABEL_NAMES[predicted_label],
-        "confidence": round(confidence, 2),
-        "message": (
-            "Machine learning prediction only. "
-            "Verify claims using reliable sources."
-        )
+        "confidence": round(confidence, 2)
     }
 
 
-# ==========================================
-# 12. TEST SAMPLE PREDICTIONS
-# ==========================================
-
 test_samples = [
     "The Earth revolves around the Sun.",
-    "Scientists use telescopes to study galaxies.",
-    "NASA's Perseverance rover is exploring Mars.",
-    "The human heart pumps blood throughout the body.",
-    "New Delhi is the capital of India.",
+    "Water boils at approximately 100 degrees Celsius at standard atmospheric pressure.",
+    "The Sun is a star located at the center of our solar system.",
+    "India's Chandrayaan-3 mission successfully landed on the Moon in August 2023.",
     "Breaking: A secret miracle drink cures every disease instantly."
 ]
 
-print("\n===================================")
-print("SAMPLE PREDICTIONS")
-print("===================================")
+print("\n========================================")
+print("SAMPLE PREDICTION RESULTS")
+print("========================================")
 
 for sample in test_samples:
+
     result = predict_news(sample)
 
-    print("\nNews:", sample)
+    print("\nInput:", sample)
     print("Prediction:", result["prediction"])
-    print("Model confidence:", str(result["confidence"]) + "%")
-    print("Note:", result["message"])
+    print("Confidence:", str(result["confidence"]) + "%")
 
-print("\nTraining and evaluation finished.")
+print("\nNewsCheck training process completed.")
