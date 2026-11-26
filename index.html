@@ -1,0 +1,544 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>NewsCheck | Fake News Detection</title>
+
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+
+<body>
+
+<header class="site-header">
+    <div class="container navbar">
+
+        <a href="#dashboard" class="brand">
+            <span class="brand-mark">✓</span>
+            <span>NewsCheck</span>
+        </a>
+
+        <nav class="nav-links">
+            <a href="#dashboard" class="nav-link active">Dashboard</a>
+            <a href="#analyzer" class="nav-link">Analyze News</a>
+            <a href="#history" class="nav-link">History</a>
+            <a href="#about" class="nav-link">About</a>
+        </nav>
+
+        <div class="nav-right">
+            <div class="system-status">
+                <span id="backendDot" class="status-dot"></span>
+                <span id="backendStatus">Checking backend...</span>
+            </div>
+
+            <button type="button" id="logoutBtn" class="logout-btn">
+                Logout
+            </button>
+        </div>
+
+    </div>
+</header>
+
+
+<main class="container page-content">
+
+    <!-- DASHBOARD -->
+
+    <section id="dashboard" class="dashboard-section">
+
+        <div class="section-heading dashboard-heading">
+            <div>
+                <p class="section-kicker">OVERVIEW</p>
+                <h1>Dashboard</h1>
+                <p class="section-description">
+                    Welcome to your NewsCheck analysis dashboard.
+                </p>
+                <p class="welcome-user" id="welcomeUser">Welcome!</p>
+            </div>
+
+            <button type="button" id="refreshDashboardBtn"
+                    class="secondary-btn">
+                ↻ Refresh
+            </button>
+        </div>
+
+
+        <div class="stats-grid">
+
+            <article class="stat-card">
+                <div class="stat-topline">
+                    <span class="stat-caption">TOTAL ANALYZED</span>
+                    <span class="stat-icon">▤</span>
+                </div>
+                <strong class="stat-number" id="totalCount">0</strong>
+                <span class="stat-label">Your total predictions</span>
+            </article>
+
+            <article class="stat-card">
+                <div class="stat-topline">
+                    <span class="stat-caption">REAL NEWS</span>
+                    <span class="stat-icon real-icon">✓</span>
+                </div>
+                <strong class="stat-number" id="realCount">0</strong>
+                <span class="stat-label">Predicted as real</span>
+            </article>
+
+            <article class="stat-card">
+                <div class="stat-topline">
+                    <span class="stat-caption">FAKE NEWS</span>
+                    <span class="stat-icon fake-icon">!</span>
+                </div>
+                <strong class="stat-number" id="fakeCount">0</strong>
+                <span class="stat-label">Predicted as fake</span>
+            </article>
+
+            <article class="stat-card">
+                <div class="stat-topline">
+                    <span class="stat-caption">AVG. CONFIDENCE</span>
+                    <span class="stat-icon confidence-icon">%</span>
+                </div>
+                <strong class="stat-number" id="averageConfidence">0%</strong>
+                <span class="stat-label">Average model score</span>
+            </article>
+
+        </div>
+
+
+        <div class="dashboard-grid">
+
+            <article class="card overview-card">
+
+                <div class="section-heading compact-heading">
+                    <div>
+                        <p class="section-kicker">ANALYTICS</p>
+                        <h2>Fake vs Real Overview</h2>
+                    </div>
+                </div>
+
+                <div class="distribution-row">
+                    <div class="distribution-label">
+                        <span><i class="legend-dot real-dot"></i> Real News</span>
+                        <strong id="realPercent">0%</strong>
+                    </div>
+                    <div class="distribution-track">
+                        <div id="realDistribution"
+                             class="distribution-fill real-fill"></div>
+                    </div>
+                </div>
+
+                <div class="distribution-row">
+                    <div class="distribution-label">
+                        <span><i class="legend-dot fake-dot"></i> Fake News</span>
+                        <strong id="fakePercent">0%</strong>
+                    </div>
+                    <div class="distribution-track">
+                        <div id="fakeDistribution"
+                             class="distribution-fill fake-fill"></div>
+                    </div>
+                </div>
+
+                <div class="distribution-row">
+                    <div class="distribution-label">
+                        <span><i class="legend-dot other-dot"></i> Other</span>
+                        <strong id="otherPercent">0%</strong>
+                    </div>
+                    <div class="distribution-track">
+                        <div id="otherDistribution"
+                             class="distribution-fill other-fill"></div>
+                    </div>
+                </div>
+
+                <p id="distributionNote" class="chart-note">
+                    Your analysis statistics will appear here.
+                </p>
+
+            </article>
+
+
+            <article class="card dashboard-recent-card">
+
+                <div class="section-heading compact-heading">
+                    <div>
+                        <p class="section-kicker">LATEST ACTIVITY</p>
+                        <h2>Recent Predictions</h2>
+                    </div>
+
+                    <a href="#history" class="text-link">View all</a>
+                </div>
+
+                <div id="dashboardRecent" class="dashboard-recent-list">
+                    <div class="empty-history">Loading recent activity...</div>
+                </div>
+
+            </article>
+
+        </div>
+
+    </section>
+
+
+    <!-- NEWS ANALYZER -->
+
+    <section id="analyzer" class="card analyzer-card">
+
+        <div class="section-heading">
+            <div>
+                <p class="section-kicker">AI POWERED ANALYSIS</p>
+                <h2>Analyze News</h2>
+                <p class="section-description">
+                    Submit news content and get a machine-learning prediction.
+                </p>
+            </div>
+
+            <span class="model-chip">TF-IDF + Logistic Regression</span>
+        </div>
+
+
+        <!-- TABS -->
+
+        <div class="tabs" role="tablist">
+
+            <button type="button" class="tab active"
+                    data-tab="text" aria-selected="true">
+                ✎ Text
+            </button>
+
+            <button type="button" class="tab"
+                    data-tab="image" aria-selected="false">
+                ▧ Image
+            </button>
+
+            <button type="button" class="tab"
+                    data-tab="video" aria-selected="false">
+                ▷ Video
+            </button>
+
+        </div>
+
+
+        <!-- TEXT PANEL -->
+
+        <div id="textPanel" class="tab-panel active">
+
+            <label for="newsText">Enter news content</label>
+
+            <textarea id="newsText"
+                placeholder="Paste or type your news article here..."
+                maxlength="30000"></textarea>
+
+            <div class="text-info">
+                <span>Minimum 20 characters required</span>
+                <span id="charCount">0 characters</span>
+            </div>
+
+        </div>
+
+
+        <!-- IMAGE PANEL -->
+
+        <div id="imagePanel" class="tab-panel">
+
+            <label>Upload a news screenshot</label>
+
+            <div id="imageUploadArea"
+                 class="upload-area"
+                 role="button"
+                 tabindex="0">
+
+                <div class="upload-symbol">▧</div>
+
+                <h3>Choose an image to upload</h3>
+
+                <p>Upload a screenshot containing readable news text.</p>
+
+                <button type="button" id="imageBrowseBtn"
+                        class="browse-btn">
+                    Browse Image
+                </button>
+
+                <p class="upload-footnote">
+                    PNG, JPG, JPEG or WEBP · Maximum 8 MB
+                </p>
+
+            </div>
+
+            <input type="file" id="imageInput"
+                   accept=".png,.jpg,.jpeg,.webp"
+                   hidden>
+
+            <div id="imagePreviewContainer"
+                 class="preview-container" hidden>
+
+                <div class="preview-header">
+                    <strong>Selected Image</strong>
+                    <button type="button" id="removeImage"
+                            class="remove-btn">
+                        Remove
+                    </button>
+                </div>
+
+                <img id="imagePreview" class="image-preview" alt="Image preview">
+
+                <p id="imageInfo" class="file-info"></p>
+
+            </div>
+
+            <p id="imageError" class="inline-error" hidden></p>
+
+        </div>
+
+
+        <!-- VIDEO PANEL -->
+
+        <div id="videoPanel" class="tab-panel">
+
+            <label>Video preview</label>
+
+            <div id="videoUploadArea"
+                 class="upload-area"
+                 role="button"
+                 tabindex="0">
+
+                <div class="upload-symbol">▷</div>
+
+                <h3>Choose a video file</h3>
+
+                <p>Preview your selected video.</p>
+
+                <button type="button" id="videoBrowseBtn"
+                        class="browse-btn">
+                    Browse Video
+                </button>
+
+                <p class="upload-footnote">
+                    Video preview only. Video prediction is not available.
+                </p>
+
+            </div>
+
+            <input type="file" id="videoInput"
+                   accept="video/*" hidden>
+
+            <div id="videoPreviewContainer"
+                 class="preview-container" hidden>
+
+                <div class="preview-header">
+                    <strong>Selected Video</strong>
+                    <button type="button" id="removeVideo"
+                            class="remove-btn">
+                        Remove
+                    </button>
+                </div>
+
+                <video id="videoPreview"
+                       class="video-preview"
+                       controls></video>
+
+                <p id="videoInfo" class="file-info"></p>
+
+            </div>
+
+        </div>
+
+
+        <!-- ACTION BUTTONS -->
+
+        <div class="action-row">
+
+            <button type="button" id="analyzeBtn" class="analyze-btn">
+                ⌕ Analyze Content
+            </button>
+
+            <button type="button" id="clearBtn" class="clear-btn">
+                Clear Input
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- LOADING -->
+
+    <section id="loadingCard" class="loading-card" hidden>
+
+        <div class="spinner"></div>
+
+        <div>
+            <h3>Analyzing your content</h3>
+            <p id="loadingMessage">Please wait...</p>
+        </div>
+
+    </section>
+
+
+    <!-- RESULT -->
+
+    <section id="resultCard" class="card result-card" hidden>
+
+        <div class="section-heading">
+            <div>
+                <p class="section-kicker">ANALYSIS RESULT</p>
+                <h2>Prediction Details</h2>
+            </div>
+            <span class="result-label">ML MODEL OUTPUT</span>
+        </div>
+
+
+        <div class="result-summary">
+
+            <span id="resultStatus" class="result-status uncertain">
+                UNCERTAIN
+            </span>
+
+            <h3 id="resultTitle">Prediction result</h3>
+
+            <p id="resultMessage">
+                Model prediction information will appear here.
+            </p>
+
+        </div>
+
+
+        <div class="confidence-box">
+
+            <div class="confidence-header">
+                <span>Model Confidence Score</span>
+                <strong id="confidenceValue">0%</strong>
+            </div>
+
+            <div id="confidenceProgress"
+                 class="progress"
+                 role="progressbar"
+                 aria-valuemin="0"
+                 aria-valuemax="100"
+                 aria-valuenow="0">
+
+                <div id="progressBar" class="progress-bar"></div>
+
+            </div>
+
+            <p class="confidence-note">
+                Confidence is the model's score, not proof of authenticity.
+            </p>
+
+        </div>
+
+
+        <div class="details-grid">
+
+            <div class="detail-box">
+                <span>Content Type</span>
+                <strong id="contentType">Text</strong>
+            </div>
+
+            <div class="detail-box">
+                <span>Prediction Source</span>
+                <strong id="sourceResult">ML Model</strong>
+            </div>
+
+            <div class="detail-box">
+                <span>Processing</span>
+                <strong id="languageResult">Text Classification</strong>
+            </div>
+
+            <div class="detail-box">
+                <span>Confidence Level</span>
+                <strong id="confidenceLevel">MODEL SCORE</strong>
+            </div>
+
+        </div>
+
+
+        <div id="extractedTextBox" class="extracted-text-box" hidden>
+
+            <div class="section-heading compact-heading">
+                <h3>Extracted Text (OCR)</h3>
+
+                <button type="button" id="copyExtractedText"
+                        class="secondary-btn">
+                    Copy Text
+                </button>
+            </div>
+
+            <pre id="extractedText"></pre>
+
+        </div>
+
+        <p class="result-disclaimer">
+            Always verify important news using trusted and independent sources.
+        </p>
+
+    </section>
+
+
+    <!-- HISTORY -->
+
+    <section id="history" class="card history-card">
+
+        <div class="section-heading">
+
+            <div>
+                <p class="section-kicker">YOUR ACTIVITY</p>
+                <h2>Prediction History</h2>
+                <p class="section-description">
+                    Your latest saved news analysis results.
+                </p>
+            </div>
+
+            <div class="history-actions">
+                <button type="button" id="clearHistoryBtn"
+                        class="danger-outline-btn">
+                    Clear History
+                </button>
+            </div>
+
+        </div>
+
+        <div id="historyList" class="history-list">
+            <div class="empty-history">Loading history...</div>
+        </div>
+
+    </section>
+
+
+    <!-- ABOUT -->
+
+    <section id="about" class="about-strip">
+
+        <div class="about-icon">i</div>
+
+        <div>
+            <h2>About NewsCheck</h2>
+
+            <p>
+                NewsCheck is a Fake News Detection System that uses
+                Natural Language Processing, TF-IDF feature extraction,
+                and a trained Logistic Regression model to classify
+                submitted news content.
+            </p>
+
+            <p>
+                Image analysis uses OCR to extract text before prediction.
+                The result is a model-based prediction and should not be
+                treated as an independently verified fact-check.
+            </p>
+        </div>
+
+    </section>
+
+</main>
+
+
+<footer class="site-footer">
+    <div class="container footer-inner">
+        <span>© 2026 NewsCheck — Fake News Detection System</span>
+        <span>Built with Python, Flask and Machine Learning</span>
+    </div>
+</footer>
+
+</body>
+</html>

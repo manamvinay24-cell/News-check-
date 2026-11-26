@@ -1,0 +1,12 @@
+
+Flask
+Flask-Cors
+Flask-Bcrypt
+Flask-SQLAlchemy
+gunicorn
+joblib
+scikit-learn
+pandas
+numpy
+Pillow
+pytesseract

@@ -1,0 +1,206 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#102d50">
+    <title>NewsCheck | Login</title>
+
+    <link rel="stylesheet" href="login.css">
+    <script src="login.js" defer></script>
+</head>
+
+<body>
+
+    <div class="background-overlay"></div>
+
+    <main class="page-wrapper">
+
+        <section class="login-card">
+
+            <div class="brand">
+                <div class="brand-icon">✓</div>
+                <h1>NewsCheck</h1>
+            </div>
+
+            <p class="brand-subtitle">
+                AI-Powered Fake News Detection System
+            </p>
+
+            <div class="welcome-section">
+                <h2 id="formHeading">Welcome Back!</h2>
+                <p id="formDescription">
+                    Login to continue to your dashboard.
+                </p>
+            </div>
+
+            <div class="form-switch">
+                <button type="button"
+                        id="loginTab"
+                        class="switch-btn active">
+                    Login
+                </button>
+
+                <button type="button"
+                        id="registerTab"
+                        class="switch-btn">
+                    Register
+                </button>
+            </div>
+
+            <div id="messageBox" class="message-box" role="alert"></div>
+
+            <!-- LOGIN FORM -->
+
+            <form id="loginForm" class="auth-form">
+
+                <div class="input-group">
+                    <label for="loginEmail">Email Address</label>
+
+                    <input
+                        type="email"
+                        id="loginEmail"
+                        name="email"
+                        placeholder="Enter your email"
+                        autocomplete="email"
+                        required
+                    >
+                </div>
+
+                <div class="input-group">
+                    <label for="loginPassword">Password</label>
+
+                    <div class="password-wrapper">
+                        <input
+                            type="password"
+                            id="loginPassword"
+                            name="password"
+                            placeholder="Enter your password"
+                            autocomplete="current-password"
+                            required
+                        >
+
+                        <button type="button"
+                                class="toggle-password"
+                                data-target="loginPassword">
+                            Show
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit"
+                        id="loginButton"
+                        class="submit-btn">
+                    Login to Dashboard
+                </button>
+
+            </form>
+
+            <!-- REGISTER FORM -->
+
+            <form id="registerForm" class="auth-form hidden">
+
+                <div class="input-group">
+                    <label for="registerName">Full Name</label>
+
+                    <input
+                        type="text"
+                        id="registerName"
+                        name="name"
+                        placeholder="Enter your full name"
+                        autocomplete="name"
+                        maxlength="80"
+                        required
+                    >
+                </div>
+
+                <div class="input-group">
+                    <label for="registerEmail">Email Address</label>
+
+                    <input
+                        type="email"
+                        id="registerEmail"
+                        name="email"
+                        placeholder="Enter your email"
+                        autocomplete="email"
+                        required
+                    >
+                </div>
+
+                <div class="input-group">
+                    <label for="registerPassword">Create Password</label>
+
+                    <div class="password-wrapper">
+                        <input
+                            type="password"
+                            id="registerPassword"
+                            name="password"
+                            placeholder="Minimum 8 characters"
+                            minlength="8"
+                            autocomplete="new-password"
+                            required
+                        >
+
+                        <button type="button"
+                                class="toggle-password"
+                                data-target="registerPassword">
+                            Show
+                        </button>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="confirmPassword">Confirm Password</label>
+
+                    <div class="password-wrapper">
+                        <input
+                            type="password"
+                            id="confirmPassword"
+                            name="confirmPassword"
+                            placeholder="Re-enter your password"
+                            minlength="8"
+                            autocomplete="new-password"
+                            required
+                        >
+
+                        <button type="button"
+                                class="toggle-password"
+                                data-target="confirmPassword">
+                            Show
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit"
+                        id="registerButton"
+                        class="submit-btn">
+                    Create Account
+                </button>
+
+            </form>
+
+            <div class="bottom-text">
+                <p id="bottomText">
+                    Don't have an account?
+                    <button type="button" id="bottomSwitch">
+                        Create Account
+                    </button>
+                </p>
+            </div>
+
+            <div class="security-note">
+                <span>🔒</span>
+                Secure account access
+            </div>
+
+        </section>
+
+        <footer>
+            © 2026 NewsCheck | Fake News Detection System
+        </footer>
+
+    </main>
+
+</body>
+</html>
