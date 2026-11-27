@@ -11,14 +11,9 @@ from io import BytesIO
 
 from PIL import Image
 
-from flask import (
-    Flask,
-    request,
-    jsonify,
-    session
-)
-
+from flask import Flask, request, jsonify, session
 from flask_cors import CORS
+
 from werkzeug.security import (
     generate_password_hash,
     check_password_hash
@@ -34,7 +29,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 MODEL_DIR = os.path.join(BASE_DIR, "model")
 
 MODEL_PATH = os.path.join(
@@ -64,8 +58,8 @@ FRONTEND_ORIGIN = os.environ.get(
 
 CORS(
     app,
-    supports_credentials=True,
-    origins=[FRONTEND_ORIGIN]
+    origins=[FRONTEND_ORIGIN],
+    supports_credentials=True
 )
 
 app.config.update(
@@ -75,16 +69,11 @@ app.config.update(
     MAX_CONTENT_LENGTH=5 * 1024 * 1024
 )
 
-# Prediction settings
-SIMILARITY_THRESHOLD = 0.50
-
 MAX_NEWS_LENGTH = 15000
 MIN_NEWS_LENGTH = 20
 
-# Model variables
 model = None
 reference_data = None
-
 reference_vectorizer = None
 reference_matrix = None
 reference_labels = None
@@ -98,11 +87,8 @@ reference_loaded = False
 # =====================================================
 
 def get_db():
-
     connection = sqlite3.connect(DATABASE_PATH)
-
     connection.row_factory = sqlite3.Row
-
     return connection
 
 
@@ -139,51 +125,41 @@ def init_database():
 
 
 # =====================================================
-# 3. LOAD TRAINED ML MODEL
+# 3. LOAD ML MODEL
 # =====================================================
 
 def load_model():
 
-    global model
-    global model_loaded
+    global model, model_loaded
 
     try:
 
         if not os.path.exists(MODEL_PATH):
-
-            print("ML model file not found:", MODEL_PATH)
-
+            print("Model file not found:", MODEL_PATH)
             model = None
             model_loaded = False
-
             return False
 
         model = joblib.load(MODEL_PATH)
 
         if not hasattr(model, "predict"):
-
-            raise ValueError(
-                "Invalid ML model format."
-            )
+            raise ValueError("Invalid ML model.")
 
         model_loaded = True
 
         print("ML model loaded successfully.")
-
         return True
 
     except Exception as error:
 
-        print("ML model loading error:", error)
-
+        print("Model loading error:", error)
         model = None
         model_loaded = False
-
         return False
 
 
 # =====================================================
-# 4. LOAD REFERENCE DATASET
+# 4. LOAD REFERENCE DATA
 # =====================================================
 
 def load_reference_data():
@@ -197,52 +173,29 @@ def load_reference_data():
     try:
 
         if not os.path.exists(REFERENCE_PATH):
-
-            print(
-                "Reference file not found:",
-                REFERENCE_PATH
-            )
-
+            print("Reference file not found:", REFERENCE_PATH)
             reference_loaded = False
-
             return False
 
-        reference_data = joblib.load(
-            REFERENCE_PATH
-        )
+        reference_data = joblib.load(REFERENCE_PATH)
 
-        reference_vectorizer = (
-            reference_data["vectorizer"]
-        )
-
-        reference_matrix = (
-            reference_data["matrix"]
-        )
+        reference_vectorizer = reference_data["vectorizer"]
+        reference_matrix = reference_data["matrix"]
 
         reference_labels = np.asarray(
             reference_data["labels"]
         )
 
         if reference_matrix.shape[0] == 0:
-
-            raise ValueError(
-                "Reference dataset is empty."
-            )
+            raise ValueError("Reference dataset is empty.")
 
         if reference_matrix.shape[0] != len(reference_labels):
-
-            raise ValueError(
-                "Reference labels and text count do not match."
-            )
+            raise ValueError("Reference data mismatch.")
 
         reference_loaded = True
 
         print("Reference dataset loaded successfully.")
-
-        print(
-            "Reference records:",
-            reference_matrix.shape[0]
-        )
+        print("Reference records:", reference_matrix.shape[0])
 
         return True
 
@@ -270,7 +223,6 @@ def login_required(function):
     def wrapper(*args, **kwargs):
 
         if not session.get("user_id"):
-
             return jsonify({
                 "status": "error",
                 "message": "Please login first."
@@ -288,7 +240,6 @@ def login_required(function):
 def calculate_dataset_similarity(news_text):
 
     if not reference_loaded:
-
         return {
             "available": False,
             "similarity": 0,
@@ -297,14 +248,11 @@ def calculate_dataset_similarity(news_text):
 
     try:
 
-        query_vector = (
-            reference_vectorizer.transform(
-                [news_text]
-            )
+        query_vector = reference_vectorizer.transform(
+            [news_text]
         )
 
         if query_vector.nnz == 0:
-
             return {
                 "available": True,
                 "similarity": 0,
@@ -316,22 +264,12 @@ def calculate_dataset_similarity(news_text):
             reference_matrix
         )[0]
 
-        best_index = int(
-            np.argmax(similarities)
-        )
-
-        best_similarity = float(
-            similarities[best_index]
-        )
-
-        nearest_label = int(
-            reference_labels[best_index]
-        )
+        best_index = int(np.argmax(similarities))
 
         return {
             "available": True,
-            "similarity": best_similarity,
-            "nearest_label": nearest_label
+            "similarity": float(similarities[best_index]),
+            "nearest_label": int(reference_labels[best_index])
         }
 
     except Exception as error:
@@ -348,7 +286,6 @@ def calculate_dataset_similarity(news_text):
 # =====================================================
 # 7. ML PREDICTION
 # =====================================================
-
 
 def predict_news(news_text):
 
@@ -373,32 +310,40 @@ def predict_news(news_text):
         }
 
     try:
-        # Get ML prediction
-        ml_prediction = int(model.predict([news_text])[0])
 
-        probabilities = model.predict_proba([news_text])[0]
+        ml_prediction = int(
+            model.predict([news_text])[0]
+        )
 
-        confidence = float(probabilities[ml_prediction]) * 100
+        probabilities = model.predict_proba(
+            [news_text]
+        )[0]
 
-        # Dataset similarity is informational only
-        similarity_result = calculate_dataset_similarity(news_text)
+        confidence = float(
+            probabilities[ml_prediction]
+        ) * 100
+
+        similarity_result = calculate_dataset_similarity(
+            news_text
+        )
 
         similarity = float(
             similarity_result.get("similarity", 0)
         )
 
-        # Low confidence: avoid forced classification
         CONFIDENCE_THRESHOLD = 60.0
 
         if confidence < CONFIDENCE_THRESHOLD:
+
             final_prediction = "NEED MORE INFORMATION"
+
             message = (
                 "The model is not sufficiently confident. "
                 "More reliable information is required."
             )
 
         else:
-            # Use ML prediction instead of nearest dataset label
+
             if ml_prediction == 1:
                 final_prediction = "REAL NEWS"
             else:
@@ -412,19 +357,25 @@ def predict_news(news_text):
         return {
             "status": "success",
             "prediction": final_prediction,
+
             "ml_prediction": (
                 "REAL NEWS" if ml_prediction == 1
                 else "FAKE NEWS"
             ),
+
             "confidence": round(confidence, 2),
             "similarity": round(similarity * 100, 2),
+
             "real_probability": round(
                 float(probabilities[1]) * 100, 2
             ),
+
             "fake_probability": round(
                 float(probabilities[0]) * 100, 2
             ),
+
             "message": message,
+
             "verification_note": (
                 "This is an ML prediction, not independent "
                 "verification of whether the news is true."
@@ -432,6 +383,7 @@ def predict_news(news_text):
         }
 
     except Exception as error:
+
         print("Prediction error:", error)
 
         return {
@@ -442,79 +394,73 @@ def predict_news(news_text):
             "message": "Unable to classify this news."
         }
 
+
 # =====================================================
 # 8. SAVE HISTORY
 # =====================================================
 
-def save_history(
-    user_id,
-    news,
-    prediction,
-    confidence
-):
+def save_history(user_id, news, prediction, confidence):
 
     connection = get_db()
 
-    connection.execute("""
-        INSERT INTO history
-        (
+    try:
+
+        connection.execute("""
+            INSERT INTO history
+            (user_id, news, prediction, confidence, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
             user_id,
             news,
             prediction,
             confidence,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?)
-    """, (
-        user_id,
-        news,
-        prediction,
-        confidence,
-        datetime.now().isoformat()
-    ))
+            datetime.now().isoformat()
+        ))
 
-    connection.commit()
-    connection.close()
+        connection.commit()
+
+    finally:
+        connection.close()
 
 
 # =====================================================
 # 9. REGISTER
 # =====================================================
 
-@app.route(
-    "/api/auth/register",
-    methods=["POST"]
-)
+@app.route("/api/auth/register", methods=["POST"])
 def register():
 
     data = request.get_json(silent=True) or {}
 
+    # Accept both frontend field names
     username = str(
-        data.get("username", "")
+        data.get("name") or data.get("username") or ""
     ).strip()
 
     email = str(
-        data.get("email", "")
+        data.get("email") or ""
     ).strip().lower()
 
     password = str(
-        data.get("password", "")
+        data.get("password") or ""
     )
 
     if not username or not email or not password:
-
         return jsonify({
             "status": "error",
             "message": "All fields are required."
         }), 400
 
-    if len(password) < 8:
-
+    if len(username) > 80:
         return jsonify({
             "status": "error",
-            "message": (
-                "Password must contain at least 8 characters."
-            )
+            "message": "Name must be 80 characters or less."
+        }), 400
+
+    if len(password) < 8:
+        return jsonify({
+            "status": "error",
+            "message": "Password must contain at least 8 characters."
         }), 400
 
     connection = get_db()
@@ -523,12 +469,7 @@ def register():
 
         connection.execute("""
             INSERT INTO users
-            (
-                username,
-                email,
-                password,
-                created_at
-            )
+            (username, email, password, created_at)
             VALUES (?, ?, ?, ?)
         """, (
             username,
@@ -541,7 +482,7 @@ def register():
 
         return jsonify({
             "status": "success",
-            "message": "Registration successful."
+            "message": "Registration successful. Please login."
         }), 201
 
     except sqlite3.IntegrityError:
@@ -551,8 +492,16 @@ def register():
             "message": "Username or email already exists."
         }), 409
 
-    finally:
+    except Exception as error:
 
+        print("Registration error:", error)
+
+        return jsonify({
+            "status": "error",
+            "message": "Registration failed. Please try again."
+        }), 500
+
+    finally:
         connection.close()
 
 
@@ -560,31 +509,37 @@ def register():
 # 10. LOGIN
 # =====================================================
 
-@app.route(
-    "/api/auth/login",
-    methods=["POST"]
-)
+@app.route("/api/auth/login", methods=["POST"])
 def login():
 
     data = request.get_json(silent=True) or {}
 
     email = str(
-        data.get("email", "")
+        data.get("email") or ""
     ).strip().lower()
 
     password = str(
-        data.get("password", "")
+        data.get("password") or ""
     )
+
+    if not email or not password:
+        return jsonify({
+            "status": "error",
+            "message": "Email and password are required."
+        }), 400
 
     connection = get_db()
 
-    user = connection.execute("""
-        SELECT *
-        FROM users
-        WHERE email = ?
-    """, (email,)).fetchone()
+    try:
 
-    connection.close()
+        user = connection.execute("""
+            SELECT *
+            FROM users
+            WHERE email = ?
+        """, (email,)).fetchone()
+
+    finally:
+        connection.close()
 
     if (
         user is None
@@ -602,49 +557,39 @@ def login():
     session.clear()
 
     session["user_id"] = user["id"]
-
     session["username"] = user["username"]
 
     return jsonify({
-
         "status": "success",
-
         "message": "Login successful.",
-
         "user": {
             "id": user["id"],
             "username": user["username"],
             "email": user["email"]
         }
-
     })
 
 
 # =====================================================
-# 11. CURRENT USER
+# 11. CURRENT USER / SESSION CHECK
 # =====================================================
 
-@app.route(
-    "/api/auth/me",
-    methods=["GET"]
-)
+@app.route("/api/auth/me", methods=["GET"])
 def current_user():
 
     if not session.get("user_id"):
 
         return jsonify({
             "status": "error",
+            "authenticated": False,
             "logged_in": False
         }), 401
 
     return jsonify({
-
         "status": "success",
-
+        "authenticated": True,
         "logged_in": True,
-
         "username": session.get("username")
-
     })
 
 
@@ -652,10 +597,7 @@ def current_user():
 # 12. LOGOUT
 # =====================================================
 
-@app.route(
-    "/api/auth/logout",
-    methods=["POST"]
-)
+@app.route("/api/auth/logout", methods=["POST"])
 def logout():
 
     session.clear()
@@ -670,30 +612,16 @@ def logout():
 # 13. HEALTH CHECK
 # =====================================================
 
-@app.route(
-    "/api/health",
-    methods=["GET"]
-)
+@app.route("/api/health", methods=["GET"])
 def health():
 
     return jsonify({
-
         "status": "success",
-
         "message": "NewsCheck backend is running.",
-
         "model_loaded": model_loaded,
-
         "reference_loaded": reference_loaded,
-
         "database": "connected",
-
-        "similarity_threshold": (
-            SIMILARITY_THRESHOLD * 100
-        ),
-
         "model_name": "TF-IDF + Logistic Regression"
-
     })
 
 
@@ -701,10 +629,7 @@ def health():
 # 14. TEXT PREDICTION
 # =====================================================
 
-@app.route(
-    "/api/predict",
-    methods=["POST"]
-)
+@app.route("/api/predict", methods=["POST"])
 @login_required
 def predict():
 
@@ -718,14 +643,12 @@ def predict():
     ).strip()
 
     if len(news_text) < MIN_NEWS_LENGTH:
-
         return jsonify({
             "status": "error",
             "message": "Please enter at least 20 characters."
         }), 400
 
     if len(news_text) > MAX_NEWS_LENGTH:
-
         return jsonify({
             "status": "error",
             "message": "News text is too long."
@@ -747,15 +670,11 @@ def predict():
 # 15. IMAGE PREDICTION / OCR
 # =====================================================
 
-@app.route(
-    "/api/predict-image",
-    methods=["POST"]
-)
+@app.route("/api/predict-image", methods=["POST"])
 @login_required
 def predict_image():
 
     if "image" not in request.files:
-
         return jsonify({
             "status": "error",
             "message": "Please upload an image."
@@ -764,7 +683,6 @@ def predict_image():
     file = request.files["image"]
 
     if not file.filename:
-
         return jsonify({
             "status": "error",
             "message": "No image selected."
@@ -778,24 +696,17 @@ def predict_image():
             BytesIO(image_data)
         ).convert("RGB")
 
-        extracted_text = (
-            pytesseract.image_to_string(image)
+        extracted_text = pytesseract.image_to_string(
+            image
         ).strip()
 
         if len(extracted_text) < MIN_NEWS_LENGTH:
-
             return jsonify({
                 "status": "error",
-                "message": (
-                    "Could not extract enough readable text."
-                )
+                "message": "Could not extract enough readable text."
             }), 400
 
-        if len(extracted_text) > MAX_NEWS_LENGTH:
-
-            extracted_text = (
-                extracted_text[:MAX_NEWS_LENGTH]
-            )
+        extracted_text = extracted_text[:MAX_NEWS_LENGTH]
 
         result = predict_news(extracted_text)
 
@@ -824,41 +735,38 @@ def predict_image():
 # 16. HISTORY
 # =====================================================
 
-@app.route(
-    "/api/history",
-    methods=["GET"]
-)
+@app.route("/api/history", methods=["GET"])
 @login_required
 def get_history():
 
     connection = get_db()
 
-    records = connection.execute("""
-        SELECT
-            id,
-            news,
-            prediction,
-            confidence,
-            created_at
-        FROM history
-        WHERE user_id = ?
-        ORDER BY id DESC
-        LIMIT 100
-    """, (
-        session["user_id"],
-    )).fetchall()
+    try:
 
-    connection.close()
+        records = connection.execute("""
+            SELECT
+                id,
+                news,
+                prediction,
+                confidence,
+                created_at
+            FROM history
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT 100
+        """, (
+            session["user_id"],
+        )).fetchall()
+
+    finally:
+        connection.close()
 
     return jsonify({
-
         "status": "success",
-
         "history": [
             dict(record)
             for record in records
         ]
-
     })
 
 
@@ -875,15 +783,19 @@ def clear_history():
 
     connection = get_db()
 
-    connection.execute("""
-        DELETE FROM history
-        WHERE user_id = ?
-    """, (
-        session["user_id"],
-    ))
+    try:
 
-    connection.commit()
-    connection.close()
+        connection.execute("""
+            DELETE FROM history
+            WHERE user_id = ?
+        """, (
+            session["user_id"],
+        ))
+
+        connection.commit()
+
+    finally:
+        connection.close()
 
     return jsonify({
         "status": "success",
