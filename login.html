@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#102d50">
-    <title>NewsCheck | Login</title>
+
+    <title>NewsCheck | Login & Register</title>
 
     <link rel="stylesheet" href="login.css">
     <script src="login.js" defer></script>
@@ -30,33 +31,52 @@
 
             <div class="welcome-section">
                 <h2 id="formHeading">Welcome Back!</h2>
+
                 <p id="formDescription">
                     Login to continue to your dashboard.
                 </p>
             </div>
 
+            <!-- LOGIN / REGISTER TABS -->
+
             <div class="form-switch">
-                <button type="button"
-                        id="loginTab"
-                        class="switch-btn active">
+
+                <button
+                    type="button"
+                    id="loginTab"
+                    class="switch-btn active">
                     Login
                 </button>
 
-                <button type="button"
-                        id="registerTab"
-                        class="switch-btn">
+                <button
+                    type="button"
+                    id="registerTab"
+                    class="switch-btn">
                     Register
                 </button>
+
             </div>
 
-            <div id="messageBox" class="message-box" role="alert"></div>
+            <!-- MESSAGE -->
+
+            <div
+                id="messageBox"
+                class="message-box"
+                role="alert"
+                aria-live="polite">
+            </div>
 
             <!-- LOGIN FORM -->
 
-            <form id="loginForm" class="auth-form">
+            <form
+                id="loginForm"
+                class="auth-form">
 
                 <div class="input-group">
-                    <label for="loginEmail">Email Address</label>
+
+                    <label for="loginEmail">
+                        Email Address
+                    </label>
 
                     <input
                         type="email"
@@ -66,12 +86,17 @@
                         autocomplete="email"
                         required
                     >
+
                 </div>
 
                 <div class="input-group">
-                    <label for="loginPassword">Password</label>
+
+                    <label for="loginPassword">
+                        Password
+                    </label>
 
                     <div class="password-wrapper">
+
                         <input
                             type="password"
                             id="loginPassword"
@@ -81,17 +106,21 @@
                             required
                         >
 
-                        <button type="button"
-                                class="toggle-password"
-                                data-target="loginPassword">
+                        <button
+                            type="button"
+                            class="toggle-password"
+                            data-target="loginPassword">
                             Show
                         </button>
+
                     </div>
+
                 </div>
 
-                <button type="submit"
-                        id="loginButton"
-                        class="submit-btn">
+                <button
+                    type="submit"
+                    id="loginButton"
+                    class="submit-btn">
                     Login to Dashboard
                 </button>
 
@@ -99,10 +128,16 @@
 
             <!-- REGISTER FORM -->
 
-            <form id="registerForm" class="auth-form hidden">
+            <form
+                id="registerForm"
+                class="auth-form hidden"
+                novalidate>
 
                 <div class="input-group">
-                    <label for="registerName">Full Name</label>
+
+                    <label for="registerName">
+                        Full Name
+                    </label>
 
                     <input
                         type="text"
@@ -113,10 +148,14 @@
                         maxlength="80"
                         required
                     >
+
                 </div>
 
                 <div class="input-group">
-                    <label for="registerEmail">Email Address</label>
+
+                    <label for="registerEmail">
+                        Email Address
+                    </label>
 
                     <input
                         type="email"
@@ -126,12 +165,17 @@
                         autocomplete="email"
                         required
                     >
+
                 </div>
 
                 <div class="input-group">
-                    <label for="registerPassword">Create Password</label>
+
+                    <label for="registerPassword">
+                        Create Password
+                    </label>
 
                     <div class="password-wrapper">
+
                         <input
                             type="password"
                             id="registerPassword"
@@ -142,18 +186,25 @@
                             required
                         >
 
-                        <button type="button"
-                                class="toggle-password"
-                                data-target="registerPassword">
+                        <button
+                            type="button"
+                            class="toggle-password"
+                            data-target="registerPassword">
                             Show
                         </button>
+
                     </div>
+
                 </div>
 
                 <div class="input-group">
-                    <label for="confirmPassword">Confirm Password</label>
+
+                    <label for="confirmPassword">
+                        Confirm Password
+                    </label>
 
                     <div class="password-wrapper">
+
                         <input
                             type="password"
                             id="confirmPassword"
@@ -164,30 +215,43 @@
                             required
                         >
 
-                        <button type="button"
-                                class="toggle-password"
-                                data-target="confirmPassword">
+                        <button
+                            type="button"
+                            class="toggle-password"
+                            data-target="confirmPassword">
                             Show
                         </button>
+
                     </div>
+
                 </div>
 
-                <button type="submit"
-                        id="registerButton"
-                        class="submit-btn">
+                <button
+                    type="submit"
+                    id="registerButton"
+                    class="submit-btn">
                     Create Account
                 </button>
 
             </form>
 
+            <!-- BOTTOM SWITCH -->
+
             <div class="bottom-text">
+
                 <p id="bottomText">
                     Don't have an account?
-                    <button type="button" id="bottomSwitch">
+
+                    <button
+                        type="button"
+                        id="bottomSwitch">
                         Create Account
                     </button>
                 </p>
+
             </div>
+
+            <!-- SECURITY NOTE -->
 
             <div class="security-note">
                 <span>🔒</span>
