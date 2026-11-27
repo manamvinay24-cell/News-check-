@@ -23,23 +23,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const messageBox = document.getElementById("messageBox");
     const bottomText = document.getElementById("bottomText");
-    const bottomSwitch = document.getElementById("bottomSwitch");
 
     const loginButton = document.getElementById("loginButton");
     const registerButton = document.getElementById("registerButton");
 
-    // Check required HTML elements
-    if (
-        !loginForm || !registerForm ||
-        !loginTab || !registerTab ||
-        !messageBox || !loginButton || !registerButton
-    ) {
-        console.error("NewsCheck login HTML elements are missing.");
+    if (!loginForm || !registerForm || !loginTab ||
+        !registerTab || !messageBox ||
+        !loginButton || !registerButton) {
+        console.error("Required login/register HTML elements are missing.");
         return;
     }
 
     // =====================================
-    // 3. MESSAGE FUNCTION
+    // 3. INPUT HELPER
+    // =====================================
+
+    function getInput(ids) {
+        for (const id of ids) {
+            const element = document.getElementById(id);
+            if (element) return element;
+        }
+        return null;
+    }
+
+    function getValue(ids) {
+        const element = getInput(ids);
+        return element ? element.value.trim() : "";
+    }
+
+    // =====================================
+    // 4. MESSAGE FUNCTION
     // =====================================
 
     function showMessage(message, type = "error") {
@@ -53,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================
-    // 4. BUTTON LOADING
+    // 5. LOADING BUTTON
     // =====================================
 
     function setLoading(button, loading, normalText) {
@@ -62,7 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================
-    // 5. API REQUEST FUNCTION
+    // 6. API REQUEST
     // =====================================
 
     async function apiRequest(endpoint, options = {}) {
@@ -78,10 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             });
         } catch (error) {
-            console.error("Backend connection error:", error);
-
+            console.error(error);
             throw new Error(
-                "Cannot connect to NewsCheck backend. Please check your internet connection and Render service."
+                "Cannot connect to NewsCheck backend. Please try again."
             );
         }
 
@@ -89,15 +101,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
             data = await response.json();
-        } catch (error) {
-            throw new Error("Invalid response received from backend.");
+        } catch {
+            throw new Error("Invalid response from backend.");
         }
 
         if (!response.ok) {
             throw new Error(
-                data.message ||
-                data.error ||
-                `Request failed (${response.status}).`
+                data.message || data.error || `Request failed (${response.status})`
             );
         }
 
@@ -105,7 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =====================================
-    // 6. SWITCH LOGIN / REGISTER
+    // 7. SWITCH LOGIN / REGISTER
     // =====================================
 
     function showLogin() {
@@ -125,17 +135,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (bottomText) {
-            bottomText.innerHTML = "";
-            bottomText.append(
-                document.createTextNode("Don't have an account? ")
-            );
+            bottomText.textContent = "Don't have an account? ";
 
             const button = document.createElement("button");
             button.type = "button";
             button.textContent = "Create Account";
             button.addEventListener("click", showRegister);
 
-            bottomText.append(button);
+            bottomText.appendChild(button);
         }
 
         clearMessage();
@@ -158,17 +165,14 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (bottomText) {
-            bottomText.innerHTML = "";
-            bottomText.append(
-                document.createTextNode("Already have an account? ")
-            );
+            bottomText.textContent = "Already have an account? ";
 
             const button = document.createElement("button");
             button.type = "button";
             button.textContent = "Login";
             button.addEventListener("click", showLogin);
 
-            bottomText.append(button);
+            bottomText.appendChild(button);
         }
 
         clearMessage();
@@ -177,19 +181,13 @@ document.addEventListener("DOMContentLoaded", () => {
     loginTab.addEventListener("click", showLogin);
     registerTab.addEventListener("click", showRegister);
 
-    if (bottomSwitch) {
-        bottomSwitch.addEventListener("click", showRegister);
-    }
-
     // =====================================
-    // 7. PASSWORD SHOW / HIDE
+    // 8. PASSWORD SHOW / HIDE
     // =====================================
 
     document.querySelectorAll(".toggle-password").forEach(button => {
         button.addEventListener("click", () => {
-            const input = document.getElementById(
-                button.dataset.target
-            );
+            const input = document.getElementById(button.dataset.target);
 
             if (!input) return;
 
@@ -204,15 +202,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // =====================================
-    // 8. LOGIN FUNCTION
+    // 9. LOGIN
     // =====================================
 
     loginForm.addEventListener("submit", async event => {
         event.preventDefault();
         clearMessage();
 
-        const email = document.getElementById("loginEmail")?.value.trim();
-        const password = document.getElementById("loginPassword")?.value;
+        const email = getValue(["loginEmail", "email"]);
+        const password = getValue(["loginPassword", "password"]);
 
         if (!email || !password) {
             showMessage("Please enter your email and password.");
@@ -231,24 +229,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error(data.message || "Login failed.");
             }
 
-            const session = await apiRequest("/api/auth/me", {
-                method: "GET"
-            });
+            const session = await apiRequest("/api/auth/me");
 
-            if (
-                session.status !== "success" ||
-                session.authenticated !== true
-            ) {
-                throw new Error(
-                    "Login succeeded, but session verification failed. Please check backend cookie settings."
-                );
+            if (session.status !== "success" ||
+                session.authenticated !== true) {
+                throw new Error("Login session could not be verified.");
             }
 
-            showMessage(
-                "Login successful! Opening dashboard...",
-                "success"
-            );
-
+            showMessage("Login successful! Opening dashboard...", "success");
             window.location.assign("./index.html");
 
         } catch (error) {
@@ -259,17 +247,50 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // =====================================
-    // 9. REGISTER FUNCTION
+    // 10. REGISTER
     // =====================================
 
     registerForm.addEventListener("submit", async event => {
         event.preventDefault();
         clearMessage();
 
-        const name = document.getElementById("registerName")?.value.trim();
-        const email = document.getElementById("registerEmail")?.value.trim();
-        const password = document.getElementById("registerPassword")?.value;
-        const confirmPassword = document.getElementById("confirmPassword")?.value;
+        const name = getValue([
+            "registerName",
+            "fullName",
+            "name"
+        ]);
+
+        const email = getValue([
+            "registerEmail",
+            "email"
+        ]);
+
+        const password = getValue([
+            "registerPassword",
+            "password"
+        ]);
+
+        const confirmPassword = getValue([
+            "confirmPassword",
+            "registerConfirmPassword",
+            "confirm_password"
+        ]);
+
+        // Check if HTML input elements exist
+        if (
+            !getInput(["registerName", "fullName", "name"]) ||
+            !getInput(["registerEmail", "email"]) ||
+            !getInput(["registerPassword", "password"]) ||
+            !getInput([
+                "confirmPassword",
+                "registerConfirmPassword",
+                "confirm_password"
+            ])
+        ) {
+            console.error("Registration input IDs do not match login.js.");
+            showMessage("Registration form fields are not connected correctly. Please check login.html.");
+            return;
+        }
 
         if (!name || !email || !password || !confirmPassword) {
             showMessage("Please fill in all fields.");
@@ -291,32 +312,24 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const data = await apiRequest("/api/auth/register", {
                 method: "POST",
-                body: JSON.stringify({ name, email, password })
+                body: JSON.stringify({
+                    name: name,
+                    email: email,
+                    password: password
+                })
             });
 
             if (data.status !== "success") {
                 throw new Error(data.message || "Registration failed.");
             }
 
-            const session = await apiRequest("/api/auth/me", {
-                method: "GET"
-            });
-
-            if (
-                session.status !== "success" ||
-                session.authenticated !== true
-            ) {
-                throw new Error(
-                    "Account created, but session verification failed. Please login."
-                );
-            }
-
             showMessage(
-                "Account created successfully! Opening dashboard...",
+                "Account created successfully! Please login.",
                 "success"
             );
 
-            window.location.assign("./index.html");
+            registerForm.reset();
+            showLogin();
 
         } catch (error) {
             showMessage(error.message);
@@ -326,14 +339,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // =====================================
-    // 10. CHECK EXISTING SESSION
+    // 11. EXISTING SESSION CHECK
     // =====================================
 
     async function checkExistingSession() {
         try {
-            const session = await apiRequest("/api/auth/me", {
-                method: "GET"
-            });
+            const session = await apiRequest("/api/auth/me");
 
             if (
                 session.status === "success" &&
@@ -341,7 +352,6 @@ document.addEventListener("DOMContentLoaded", () => {
             ) {
                 window.location.replace("./index.html");
             }
-
         } catch (error) {
             console.warn("Session check:", error.message);
         }
